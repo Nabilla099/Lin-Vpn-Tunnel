@@ -94,7 +94,6 @@ class SshEngine(
             "PreferredAuthentications",
             if (hasKey) "publickey,password,keyboard-interactive" else "password,keyboard-interactive,publickey"
         )
-        if (px == null && profile.host.isNotBlank()) s.hostKeyAlias = profile.host.trim()
         // Android (terutama versi lama) tidak punya EC/XDH di JCE -> prioritaskan algoritma DH + RSA + AES
         // yang pasti tersedia; algoritma bawaan library tetap ada di urutan belakang sebagai cadangan.
         androidSafe(s)

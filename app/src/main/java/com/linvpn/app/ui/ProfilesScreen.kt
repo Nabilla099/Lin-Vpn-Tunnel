@@ -184,6 +184,10 @@ private fun validate(p: Profile): String? {
         if (p.port !in 1..65535) return "Port SSH tidak valid"
         if ((p.proxyHost.isBlank()) != (p.proxyPort == 0)) return "Proxy: isi host dan port, atau kosongkan keduanya"
     }
+    if (p.type.usesSlowDns && p.host.isNotBlank()) {
+        val pt = p.host.trim().substringAfterLast(':', "")
+        if (p.host.contains(':') && pt.toIntOrNull()?.let { it in 1..65535 } != true) return "Port pada Host SlowDNS tidak valid (format host:port)"
+    }
     if (p.type.usesSlowDns) {
         try {
             SlowDnsClient.validate(p)
@@ -348,10 +352,14 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                             )
                             OutlinedTextField(
                                 value = p.dnsServer, onValueChange = { p = p.copy(dnsServer = it) },
+                                supportingText = {
+                                    if (p.dnsTransport == DnsTransport.UDP)
+                                        Text("Disarankan dikosongkan. Sebagian operator memalsukan jawaban DNS publik seperti 8.8.8.8.")
+                                },
                                 label = {
                                     Text(
                                         when (p.dnsTransport) {
-                                            DnsTransport.UDP -> "Resolver DNS (mis. 8.8.8.8)"
+                                            DnsTransport.UDP -> "Resolver DNS (kosong = DNS jaringan)"
                                             DnsTransport.DOT -> "Resolver DoT (mis. dns.google:853)"
                                             DnsTransport.DOH -> "URL DoH (mis. https://dns.google/dns-query)"
                                         }
@@ -359,11 +367,12 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                                 },
                                 singleLine = true, modifier = Modifier.fillMaxWidth()
                             )
-                            if (p.type == ProfileType.SSH_SLOWDNS) {
+                            if (p.dnsTransport == DnsTransport.UDP) {
                                 OutlinedTextField(
-                                    value = p.host, onValueChange = { p = p.copy(host = it) },
-                                    label = { Text("Host server SSH (opsional)") },
-                                    supportingText = { Text("Alamat asli server akun; dipakai sebagai identitas server SSH.") },
+                                    value = p.host, onValueChange = { p = p.copy(host = it.trim()) },
+                                    label = { Text("Host SlowDNS (host:port, opsional)") },
+                                    placeholder = { Text("mis. selowdns.vpnstore28.my.id:53") },
+                                    supportingText = { Text("Server DNS yang dikueri langsung (port ikut di host, bawaan 53). Bila diisi, mengganti Resolver DNS.") },
                                     singleLine = true, modifier = Modifier.fillMaxWidth()
                                 )
                             }

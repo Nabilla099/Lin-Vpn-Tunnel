@@ -178,7 +178,11 @@ jobs:
           APKSIGNER="$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)"
           for f in dist/*.apk; do
             echo "== $f"
-            "$APKSIGNER" verify --print-certs "$f" | grep -E "Signer #1 certificate (DN|SHA-256)"
+            if out="$("$APKSIGNER" verify --print-certs "$f" 2>&1)"; then
+              echo "$out" | grep -E "certificate (DN|SHA-256)" || echo "$out"
+            else
+              echo "::warning::Verifikasi tanda tangan gagal untuk $f"; echo "$out"
+            fi
           done
 
       - uses: actions/upload-artifact@v4

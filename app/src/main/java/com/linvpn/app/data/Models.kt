@@ -68,7 +68,7 @@ data class Profile(
     fun summary(): String = when (type) {
         ProfileType.SSH_PAYLOAD, ProfileType.SSH_TLS ->
             "${username.ifBlank { "?" }}@${host.ifBlank { "?" }}:$port"
-        ProfileType.SSH_SLOWDNS -> "${username.ifBlank { "?" }} · NS ${nsDomain.ifBlank { "?" }}"
+        ProfileType.SSH_SLOWDNS -> "${username.ifBlank { "?" }}${if (host.isNotBlank()) "@" + host.trim() else ""} · NS ${nsDomain.ifBlank { "?" }}"
         ProfileType.V2RAY -> v2rayAddress() ?: "Konfigurasi V2Ray"
         ProfileType.V2RAY_SLOWDNS -> "NS ${nsDomain.ifBlank { "?" }}"
     }

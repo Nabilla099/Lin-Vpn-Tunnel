@@ -359,6 +359,14 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                                 },
                                 singleLine = true, modifier = Modifier.fillMaxWidth()
                             )
+                            if (p.type == ProfileType.SSH_SLOWDNS) {
+                                OutlinedTextField(
+                                    value = p.host, onValueChange = { p = p.copy(host = it) },
+                                    label = { Text("Host server SSH (opsional)") },
+                                    supportingText = { Text("Alamat asli server akun; dipakai sebagai identitas server SSH.") },
+                                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                             OutlinedTextField(
                                 value = p.nsDomain, onValueChange = { p = p.copy(nsDomain = it) },
                                 label = { Text("Name Server (NS)") }, singleLine = true, modifier = Modifier.fillMaxWidth()

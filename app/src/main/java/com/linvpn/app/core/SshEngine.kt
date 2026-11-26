@@ -65,7 +65,7 @@ class SshEngine(
             dns = c
             try {
                 c.start()
-                connectSsh(null, "127.0.0.1", port, maxOf(timeoutMs, 45000))
+                connectSsh(null, "127.0.0.1", port, if (cands.size > 1) 25000 else maxOf(timeoutMs, 45000))
                 return
             } catch (e: Throwable) {
                 c.stop()
@@ -94,7 +94,11 @@ class SshEngine(
             "PreferredAuthentications",
             if (hasKey) "publickey,password,keyboard-interactive" else "password,keyboard-interactive,publickey"
         )
-        // Default: hanya algoritma modern bawaan library. Algoritma lawas harus dinyalakan manual.
+        if (px == null && profile.host.isNotBlank()) s.hostKeyAlias = profile.host.trim()
+        // Android (terutama versi lama) tidak punya EC/XDH di JCE -> prioritaskan algoritma DH + RSA + AES
+        // yang pasti tersedia; algoritma bawaan library tetap ada di urutan belakang sebagai cadangan.
+        androidSafe(s)
+        // Algoritma lawas harus dinyalakan manual.
         if (st.legacySsh) enableLegacy(s)
         if (st.compression) {
             s.setConfig("compression.s2c", "zlib@openssh.com,zlib,none")
@@ -120,6 +124,21 @@ class SshEngine(
             throw IOException("Dibatalkan")
         }
         LogBus.add("SSH terhubung · ${s.serverVersion}")
+    }
+
+    private fun androidSafe(s: Session) {
+        fun front(key: String, first: String) {
+            val base = JSch.getConfig(key) ?: ""
+            val head = first.split(',')
+            val rest = base.split(',').filter { it.isNotBlank() && it !in head }
+            s.setConfig(key, (head + rest).joinToString(","))
+        }
+        front("kex", "diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256")
+        front("server_host_key", "rsa-sha2-512,rsa-sha2-256,ssh-rsa")
+        front("cipher.s2c", "aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com")
+        front("cipher.c2s", "aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com")
+        front("mac.s2c", "hmac-sha2-256,hmac-sha2-512")
+        front("mac.c2s", "hmac-sha2-256,hmac-sha2-512")
     }
 
     /** Opsional (Pengaturan > Algoritma SSH lawas) untuk server yang benar-benar tua. */

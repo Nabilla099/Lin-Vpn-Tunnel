@@ -38,7 +38,7 @@ clone() { # url dir [ref]
 }
 
 latest_tag() { # url pola -> tag terbaru (urut versi)
-  git ls-remote --tags --refs --sort=-v:refname "$1" "$2" | head -n1 | sed 's#.*refs/tags/##'
+  git ls-remote --tags --refs --sort=-v:refname "$1" "$2" | sed -n '1{s#.*refs/tags/##;p;}'
 }
 
 # --- Go (cgo + NDK, GOOS=android) -> biner PIE yang memakai bionic ---------------------------

@@ -177,7 +177,31 @@ def write_gif():
     print("GIF:", out, os.path.getsize(out) // 1024, "KB")
 
 
+def write_banner(W=1600, H=480):
+    """Banner statis profesional untuk README."""
+    ys, xs = np.mgrid[0:H, 0:W].astype(np.float32)
+    t = (xs / (W - 1)) * 0.75 + (ys / (H - 1)) * 0.25
+    a, b = (0x1E, 0x1B, 0x4B), (0x0E, 0x74, 0x90)
+    arr = np.full((H, W, 4), 255, np.uint8)
+    for i in range(3):
+        arr[..., i] = (a[i] + (b[i] - a[i]) * t).astype(np.uint8)
+    bg = Image.fromarray(arr, "RGBA")
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    for i, r in enumerate(range(260, 900, 120)):  # lingkaran dekoratif
+        d.ellipse((W - 260 - r, H // 2 - r, W - 260 + r, H // 2 + r), outline=(255, 255, 255, 22 - i * 3), width=3)
+    bg = Image.alpha_composite(bg, ov)
+    ic = icon(280, "round", scale=1.0).convert("RGBA")
+    bg.alpha_composite(ic, (150, (H - 280) // 2))
+    d = ImageDraw.Draw(bg)
+    d.text((470, 130), "Lin Vpn", font=font(130), fill="white")
+    d.text((474, 285), "Koneksi aman, cepat, dan stabil.", font=font(44, False), fill=(224, 242, 254, 255))
+    d.text((474, 350), "SSH  ·  SlowDNS  ·  V2Ray", font=font(34, False), fill=(165, 214, 232, 255))
+    bg.convert("RGB").save(os.path.join(DOCS, "banner.png"), optimize=True)
+
+
 if __name__ == "__main__":
     write_mipmaps()
     write_gif()
+    write_banner()
     print("selesai")

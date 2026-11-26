@@ -68,6 +68,10 @@ fun SettingsScreen() {
     val clip = LocalClipboardManager.current
     var dlg by remember { mutableStateOf<Dlg?>(null) }
     var picker by remember { mutableStateOf(false) }
+    var shareExport by remember { mutableStateOf(false) }
+    var shareImport by remember { mutableStateOf(false) }
+    if (shareExport) ExportDialog(Store.profiles.value) { shareExport = false }
+    if (shareImport) ImportDialog { shareImport = false }
 
     fun upd(b: (AppSettings) -> AppSettings) = Store.updateSettings(b)
 
@@ -192,15 +196,9 @@ fun SettingsScreen() {
             }
 
             SettingGroup("Data") {
-                SettingItem("Ekspor profil", "", "Salin semua profil ke clipboard") {
-                    clip.setText(AnnotatedString(Store.exportProfiles()))
-                    Toast.makeText(ctx, "Profil disalin ke clipboard", Toast.LENGTH_SHORT).show()
-                }
+                SettingItem("Ekspor profil", "", "Simpan sebagai berkas .ln atau tautan Link-Vpn") { shareExport = true }
                 SettingDivider()
-                SettingItem("Impor profil", "", "Tempel hasil ekspor dari clipboard") {
-                    val n = Store.importProfiles(clip.getText()?.text ?: "")
-                    Toast.makeText(ctx, if (n < 0) "Format clipboard tidak dikenali" else "$n profil diimpor", Toast.LENGTH_SHORT).show()
-                }
+                SettingItem("Impor profil", "", "Dari berkas .ln atau tautan Link-Vpn") { shareImport = true }
                 SettingDivider()
                 SettingItem("Setel ulang pengaturan", "", "Profil tidak dihapus") {
                     upd { AppSettings(lastProfileId = it.lastProfileId) }

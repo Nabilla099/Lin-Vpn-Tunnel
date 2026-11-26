@@ -69,6 +69,12 @@ object Store {
         prefs.edit().putString("settings", json.encodeToString(s)).apply()
     }
 
+    /** Menyimpan profil hasil impor (id baru). Mengembalikan jumlahnya. */
+    fun importList(list: List<Profile>): Int {
+        list.forEach { saveProfile(it.copy(id = UUID.randomUUID().toString())) }
+        return list.size
+    }
+
     fun exportProfiles(): String = json.encodeToString(_profiles.value)
 
     /** Mengembalikan jumlah profil yang berhasil diimpor, atau -1 bila format salah. */

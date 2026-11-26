@@ -34,7 +34,7 @@ class Socks5Server(
     private var server: ServerSocket? = null
     private val loopback: InetAddress = InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1))
     private val pool: ExecutorService = Executors.newCachedThreadPool { r ->
-        Thread(r, "socks").apply { isDaemon = true }
+        Thread(null, r, "socks", 256 * 1024).apply { isDaemon = true }
     }
     private val gw: UdpGw? = if (udpgwPort > 0) UdpGw() else null
 
@@ -212,7 +212,7 @@ class Socks5Server(
         out.flush()
         c.soTimeout = 0
         val t = Thread({
-            val buf = ByteArray(65535)
+            val buf = ByteArray(4096)
             val pkt = DatagramPacket(buf, buf.size)
             try {
                 while (true) {

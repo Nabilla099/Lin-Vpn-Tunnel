@@ -15,6 +15,9 @@ data class Speed(
 
 /** Status bersama antara service dan UI (satu proses). */
 object VpnState {
+    /** true saat aplikasi tampil di layar; bila false, riwayat grafik tidak dihitung (hemat CPU/RAM). */
+    @Volatile var uiVisible = false
+
     val status = MutableStateFlow(Status.IDLE)
     val speed = MutableStateFlow(Speed())
     val connectedAt = MutableStateFlow(0L)

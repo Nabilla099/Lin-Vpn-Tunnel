@@ -28,6 +28,7 @@
 |---|---|
 | **Banyak metode koneksi** | SSH WebSocket / Payload, SSH TLS, SSH SlowDNS, V2Ray, dan V2Ray SlowDNS. |
 | **Manajemen profil** | Simpan banyak akun, ganti dengan satu ketukan, duplikat, ekspor, dan impor. |
+| **Berbagi profil** | Bagikan lewat berkas atau tautan, dengan opsi kedaluwarsa, catatan berwarna, dan perlindungan. |
 | **SlowDNS lengkap** | Pilihan tipe koneksi, name server, dan public key. |
 | **Beranda informatif** | Tombol sambung, durasi, kecepatan unduh dan unggah secara langsung, IP lokal, serta pesan dari penyedia akun. |
 | **Notifikasi praktis** | Tombol *Putuskan* dan *Hubungkan ulang*, lengkap dengan kecepatan terkini. |

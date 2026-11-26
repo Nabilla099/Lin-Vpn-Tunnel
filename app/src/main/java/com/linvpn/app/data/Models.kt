@@ -63,9 +63,16 @@ data class Profile(
     val nsDomain: String = "",
     val pubKey: String = "",
     // V2Ray
-    val v2rayConfig: String = ""
+    val v2rayConfig: String = "",
+    // Dari penyedia (berkas/tautan impor)
+    val note: String = "",          // catatan; boleh memakai HTML/CSS sederhana untuk warna
+    val expiresAt: Long = 0,        // epoch ms; 0 = tidak kedaluwarsa
+    val blockRoot: Boolean = false, // tolak perangkat root
+    val locked: Boolean = false     // kunci penyedia: detail disembunyikan, tidak bisa diubah/diekspor
 ) {
-    fun summary(): String = when (type) {
+    fun isExpired(now: Long = System.currentTimeMillis()) = expiresAt > 0 && now > expiresAt
+
+    fun summary(): String = if (locked) "Dikunci penyedia" else when (type) {
         ProfileType.SSH_PAYLOAD, ProfileType.SSH_TLS ->
             "${username.ifBlank { "?" }}@${host.ifBlank { "?" }}:$port"
         ProfileType.SSH_SLOWDNS -> "${username.ifBlank { "?" }} · NS ${nsDomain.ifBlank { "?" }}"

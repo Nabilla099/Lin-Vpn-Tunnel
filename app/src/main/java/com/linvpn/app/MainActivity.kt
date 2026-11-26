@@ -88,6 +88,16 @@ class MainActivity : ComponentActivity() {
         if (i != null) vpnLauncher.launch(i) else LinVpnService.connect(this, pendingProfile)
     }
 
+    override fun onStart() {
+        super.onStart()
+        com.linvpn.app.core.VpnState.uiVisible = true
+    }
+
+    override fun onStop() {
+        com.linvpn.app.core.VpnState.uiVisible = false
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

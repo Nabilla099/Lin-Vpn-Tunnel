@@ -53,7 +53,10 @@ class V2rayEngine(
         val env = mapOf(
             "XRAY_LOCATION_ASSET" to ctx.filesDir.absolutePath,
             "xray.location.asset" to ctx.filesDir.absolutePath,
-            "GOMEMLIMIT" to "192MiB"
+            "GOMEMLIMIT" to "96MiB",
+            "GOGC" to "50",
+            "GOMAXPROCS" to "2",
+            "GODEBUG" to "madvdontneed=1"
         )
         val np = NativeProcess("xray", listOf(bin.absolutePath, "run", "-c", f.absolutePath), env)
         proc = np

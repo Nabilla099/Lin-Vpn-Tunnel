@@ -1,5 +1,19 @@
 package com.linvpn.app.ui
 
+import android.os.Build
+import android.text.Html
+import android.text.Spanned
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.StrikethroughSpan
+import android.text.style.StyleSpan
+import android.text.style.UnderlineSpan
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -243,4 +257,41 @@ fun ChoiceDialog(
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
     )
+}
+
+
+/** Catatan penyedia: mendukung HTML/CSS sederhana (warna teks & latar, tebal, miring, garis bawah). */
+fun htmlToAnnotated(html: String): androidx.compose.ui.text.AnnotatedString {
+    val sp: Spanned = if (Build.VERSION.SDK_INT >= 24) {
+        Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT)
+    } else {
+        @Suppress("DEPRECATION") Html.fromHtml(html)
+    }
+    val text = sp.toString().trimEnd()
+    return buildAnnotatedString {
+        append(text)
+        for (span in sp.getSpans(0, sp.length, Any::class.java)) {
+            val st = sp.getSpanStart(span).coerceIn(0, text.length)
+            val en = sp.getSpanEnd(span).coerceIn(0, text.length)
+            if (en <= st) continue
+            when (span) {
+                is ForegroundColorSpan -> addStyle(SpanStyle(color = Color(span.foregroundColor)), st, en)
+                is BackgroundColorSpan -> addStyle(SpanStyle(background = Color(span.backgroundColor)), st, en)
+                is UnderlineSpan -> addStyle(SpanStyle(textDecoration = TextDecoration.Underline), st, en)
+                is StrikethroughSpan -> addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), st, en)
+                is StyleSpan -> when (span.style) {
+                    android.graphics.Typeface.BOLD -> addStyle(SpanStyle(fontWeight = FontWeight.Bold), st, en)
+                    android.graphics.Typeface.ITALIC -> addStyle(SpanStyle(fontStyle = FontStyle.Italic), st, en)
+                    android.graphics.Typeface.BOLD_ITALIC ->
+                        addStyle(SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic), st, en)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HtmlText(html: String, modifier: Modifier = Modifier) {
+    val a = remember(html) { htmlToAnnotated(html) }
+    Text(a, modifier, style = MaterialTheme.typography.bodyMedium)
 }

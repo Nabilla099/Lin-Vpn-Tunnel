@@ -72,6 +72,13 @@ class LinVpnService : VpnService() {
     @Volatile private var reconnectRequested = false
     @Volatile private var engine: Engine? = null
     private var worker: Thread? = null
+    private var tick = 0
+
+    private fun screenOn(): Boolean = try {
+        (getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
+    } catch (_: Throwable) {
+        true
+    }
     private var tun: ParcelFileDescriptor? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var netCallback: ConnectivityManager.NetworkCallback? = null
@@ -120,6 +127,16 @@ class LinVpnService : VpnService() {
         val profile = Store.profiles.value.firstOrNull { it.id == profileId }
         if (profile == null) {
             LogBus.add("Profil belum dipilih / tidak ditemukan")
+            finishService()
+            return
+        }
+        if (profile.isExpired()) {
+            LogBus.add("Profil \"${profile.name}\" sudah kedaluwarsa. Hubungi penyedia untuk memperbarui.")
+            finishService()
+            return
+        }
+        if (profile.blockRoot && com.linvpn.app.core.RootCheck.isRooted()) {
+            LogBus.add("Profil ini tidak mengizinkan perangkat root.")
             finishService()
             return
         }
@@ -211,7 +228,9 @@ class LinVpnService : VpnService() {
                             prevTx = s[1]
                             prevRx = s[3]
                             publishSpeed(down, up, s[3], s[1])
-                            updateNotification()
+                            // Layar mati & aplikasi tidak terlihat: perbarui notifikasi tiap ~5 dtk saja
+                            tick++
+                            if (VpnState.uiVisible || screenOn() || tick % 5 == 0) updateNotification()
                         }
                     }
                     if (stopRequested) break
@@ -372,6 +391,10 @@ class LinVpnService : VpnService() {
 
     private fun publishSpeed(down: Long, up: Long, totalDown: Long, totalUp: Long) {
         val old = VpnState.speed.value
+        if (!VpnState.uiVisible) { // grafik tidak terlihat: cukup simpan angka terakhir, tanpa alokasi daftar baru
+            VpnState.speed.value = Speed(down, up, totalDown, totalUp, old.downHist, old.upHist)
+            return
+        }
         fun push(l: List<Float>, v: Long): List<Float> {
             val n = ArrayList<Float>(l.size + 1)
             n.addAll(if (l.size >= 40) l.subList(l.size - 39, l.size) else l)

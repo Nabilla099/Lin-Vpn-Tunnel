@@ -103,6 +103,7 @@ fun HomeScreen(
                         SpeedCard(status)
                         ActionRow(status, onReconnect)
                         IpCard(status)
+                        NoteCard(selected)
                         BannerCard()
                     }
                 }
@@ -118,6 +119,7 @@ fun HomeScreen(
                     SpeedCard(status)
                     ActionRow(status, onReconnect)
                     IpCard(status)
+                    NoteCard(selected)
                     BannerCard()
                     Spacer(Modifier.height(8.dp))
                 }
@@ -396,5 +398,21 @@ private fun BannerCard() {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+private fun NoteCard(p: Profile?) {
+    if (p == null || (p.note.isBlank() && p.expiresAt <= 0)) return
+    SectionCard("Catatan penyedia") {
+        if (p.note.isNotBlank()) HtmlText(p.note, Modifier.fillMaxWidth())
+        if (p.expiresAt > 0) {
+            val d = java.text.SimpleDateFormat("dd MMM yyyy, HH:mm", java.util.Locale("id", "ID")).format(java.util.Date(p.expiresAt))
+            Text(
+                if (p.isExpired()) "Kedaluwarsa sejak $d" else "Berlaku sampai $d",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (p.isExpired()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }

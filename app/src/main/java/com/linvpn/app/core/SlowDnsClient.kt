@@ -63,7 +63,7 @@ class SlowDnsClient(
         if (p.dnsTransport == DnsTransport.UDP) probe(target, ns)
         LogBus.add("SlowDNS ${cand.label} · ${p.dnsTransport.name} → $target · NS $ns")
 
-        val env = mapOf("GOMEMLIMIT" to "96MiB", "GOMAXPROCS" to "2")
+        val env = mapOf("GOMEMLIMIT" to "48MiB", "GOGC" to "40", "GOMAXPROCS" to "1", "GODEBUG" to "madvdontneed=1")
         val np = NativeProcess("slowdns", args, env) { line ->
             if (line.contains("forged DNS responses")) {
                 LogBus.add("Peringatan: resolver membalas dengan jawaban palsu untuk tipe ini. Coba tipe TXT atau resolver/DoH lain.")

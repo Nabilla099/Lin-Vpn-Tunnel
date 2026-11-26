@@ -82,6 +82,10 @@ fun ProfilesScreen(onEdit: (Profile?) -> Unit) {
     val settings by Store.settings.collectAsState()
     val status by VpnState.status.collectAsState()
     var deleting by remember { mutableStateOf<Profile?>(null) }
+    var importing by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf<List<Profile>?>(null) }
+    if (importing) ImportDialog { importing = false }
+    exporting?.let { ExportDialog(it) { exporting = null } }
 
     Box(Modifier.fillMaxSize()) {
         if (profiles.isEmpty()) {
@@ -97,6 +101,8 @@ fun ProfilesScreen(onEdit: (Profile?) -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = { importing = true }) { Text("Impor dari berkas / tautan") }
             }
         } else {
             LazyColumn(
@@ -104,12 +110,19 @@ fun ProfilesScreen(onEdit: (Profile?) -> Unit) {
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { importing = true }) { Text("Impor") }
+                        TextButton(onClick = { exporting = profiles }) { Text("Ekspor semua") }
+                    }
+                }
                 items(profiles, key = { it.id }) { p ->
                     val selected = (settings.lastProfileId.ifBlank { profiles.first().id }) == p.id
                     ProfileCard(
                         p, selected, status != Status.IDLE,
                         onSelect = { Store.updateSettings { it.copy(lastProfileId = p.id) } },
                         onEdit = { onEdit(p) },
+                        onExport = { exporting = listOf(p) },
                         onDuplicate = { Store.duplicateProfile(p.id) },
                         onDelete = { deleting = p }
                     )
@@ -142,7 +155,7 @@ fun ProfilesScreen(onEdit: (Profile?) -> Unit) {
 @Composable
 private fun ProfileCard(
     p: Profile, selected: Boolean, busy: Boolean,
-    onSelect: () -> Unit, onEdit: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit
+    onSelect: () -> Unit, onEdit: () -> Unit, onExport: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     Card(
@@ -162,8 +175,11 @@ private fun ProfileCard(
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Menu") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Ubah") }, onClick = { menu = false; onEdit() })
-                    DropdownMenuItem(text = { Text("Duplikat") }, onClick = { menu = false; onDuplicate() })
+                    if (!p.locked) {
+                        DropdownMenuItem(text = { Text("Ubah") }, onClick = { menu = false; onEdit() })
+                        DropdownMenuItem(text = { Text("Duplikat") }, onClick = { menu = false; onDuplicate() })
+                        DropdownMenuItem(text = { Text("Ekspor…") }, onClick = { menu = false; onExport() })
+                    }
                     DropdownMenuItem(text = { Text("Hapus") }, onClick = { menu = false; onDelete() })
                 }
             }

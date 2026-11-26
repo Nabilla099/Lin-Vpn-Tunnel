@@ -1,0 +1,205 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versi rilis, mis. 1.0.0 (kosongkan = hanya build, tanpa rilis)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 1) Komponen native (tun2socks, SlowDNS, V2Ray) - lambat, jadi di-cache.
+  natives:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Cache komponen native
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/jniLibs
+          # Naikkan angka v1 bila ingin memaksa membangun ulang (mis. untuk memperbarui Xray/dnstt).
+          key: natives-v1-${{ hashFiles('scripts/build-natives.sh') }}
+
+      - name: Bangun komponen native
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash scripts/build-natives.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives
+          path: app/src/main/jniLibs
+          if-no-files-found: error
+          retention-days: 7
+
+  # 2) APK
+  apk:
+    needs: natives
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: natives
+          path: app/src/main/jniLibs
+
+      - name: Tentukan versi
+        id: ver
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          release=false
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            name="${GITHUB_REF_NAME#v}"; release=true
+          elif [[ -n "${INPUT_VERSION}" ]]; then
+            name="${INPUT_VERSION#v}"; release=true
+          else
+            name="0.0.${GITHUB_RUN_NUMBER}-dev"
+          fi
+          if ! [[ "$name" =~ ^[0-9A-Za-z._-]+$ ]]; then echo "::error::Versi tidak valid: $name"; exit 1; fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "Versi: $name (rilis=$release)"
+
+      # Keystore: dipakai dari Secrets bila ada. Bila tidak, dibuat otomatis SEKALI lalu
+      # disimpan di cache repo supaya tanda tangan APK tetap sama antar rilis.
+      - name: Pulihkan keystore dari cache
+        id: kscache
+        uses: actions/cache/restore@v4
+        with:
+          path: ci-keystore
+          key: linvpn-keystore-v1
+
+      - name: Siapkan keystore
+        id: ks
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-keystore
+          generated=false
+          if [[ -n "${KEYSTORE_BASE64:-}" ]]; then
+            echo "Memakai keystore dari Secrets"
+            echo "$KEYSTORE_BASE64" | base64 -d > ci-keystore/release.jks
+            ks_pass="$KEYSTORE_PASSWORD"; alias="${KEY_ALIAS:-linvpn}"; key_pass="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+          elif [[ -f ci-keystore/release.jks && -f ci-keystore/secret.env ]]; then
+            echo "Memakai keystore dari cache"
+            # shellcheck disable=SC1091
+            source ci-keystore/secret.env
+            ks_pass="$KS_PASS"; alias="$KS_ALIAS"; key_pass="$KS_PASS"
+          else
+            echo "Membuat keystore baru"
+            ks_pass="$(openssl rand -hex 16)"; alias="linvpn"; key_pass="$ks_pass"
+            keytool -genkeypair -keystore ci-keystore/release.jks -storetype PKCS12 \
+              -alias "$alias" -keyalg RSA -keysize 3072 -validity 36500 \
+              -storepass "$ks_pass" -keypass "$key_pass" \
+              -dname "CN=Lin Vpn, O=Lin Vpn, C=ID"
+            printf 'KS_PASS=%s\nKS_ALIAS=%s\n' "$ks_pass" "$alias" > ci-keystore/secret.env
+            generated=true
+          fi
+          echo "::add-mask::$ks_pass"
+          echo "::add-mask::$key_pass"
+          {
+            echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/ci-keystore/release.jks"
+            echo "KEYSTORE_PASSWORD=$ks_pass"
+            echo "KEY_ALIAS=$alias"
+            echo "KEY_PASSWORD=$key_pass"
+          } >> "$GITHUB_ENV"
+          echo "generated=$generated" >> "$GITHUB_OUTPUT"
+          if [[ "$generated" == true ]]; then
+            echo "::notice title=Keystore baru::Keystore dibuat otomatis dan disimpan di cache repo agar tanda tangan konsisten. Untuk penyimpanan permanen, isi Secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD."
+          fi
+
+      - name: Simpan keystore ke cache
+        if: steps.ks.outputs.generated == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ci-keystore
+          key: linvpn-keystore-v1
+
+      # Cadangan keystore hanya diunggah untuk repo PRIVAT (artifact repo publik bisa diunduh siapa saja).
+      - name: Cadangan keystore (repo privat saja)
+        if: steps.ks.outputs.generated == 'true' && github.event.repository.private == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: keystore-cadangan
+          path: ci-keystore
+          retention-days: 90
+
+      - name: Build APK release
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease \
+            -PappVersionName="${{ steps.ver.outputs.name }}" \
+            -PappVersionCode="${{ github.run_number }}"
+
+      - name: Kumpulkan & verifikasi APK
+        id: pack
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          V="${{ steps.ver.outputs.name }}"
+          for f in app/build/outputs/apk/release/*.apk; do
+            abi="$(basename "$f" .apk | sed -E 's/^app-//; s/-release$//')"
+            cp "$f" "dist/LinVpn-${V}-${abi}.apk"
+          done
+          ls -lh dist
+          APKSIGNER="$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)"
+          for f in dist/*.apk; do
+            echo "== $f"
+            "$APKSIGNER" verify --print-certs "$f" | grep -E "Signer #1 certificate (DN|SHA-256)"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LinVpn-${{ steps.ver.outputs.name }}
+          path: dist/*.apk
+          retention-days: 30
+
+      - name: Buat rilis GitHub
+        if: steps.ver.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.name }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.apk --clobber
+          else
+            gh release create "$TAG" dist/*.apk \
+              --title "Lin Vpn ${VERSION}" \
+              --generate-notes \
+              --target "$GITHUB_SHA"
+          fi

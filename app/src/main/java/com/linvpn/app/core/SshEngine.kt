@@ -65,7 +65,7 @@ class SshEngine(
             dns = c
             try {
                 c.start()
-                connectSsh(null, "127.0.0.1", port, if (cands.size > 1) 25000 else maxOf(timeoutMs, 45000))
+                connectSsh(null, "127.0.0.1", port, if (cands.size > 1) 20000 else maxOf(timeoutMs, 45000))
                 return
             } catch (e: Throwable) {
                 c.stop()
@@ -96,6 +96,7 @@ class SshEngine(
         )
         // Android (terutama versi lama) tidak punya EC/XDH di JCE -> prioritaskan algoritma DH + RSA + AES
         // yang pasti tersedia; algoritma bawaan library tetap ada di urutan belakang sebagai cadangan.
+        if (px == null && profile.host.isNotBlank()) s.hostKeyAlias = profile.host.trim()
         androidSafe(s)
         // Algoritma lawas harus dinyalakan manual.
         if (st.legacySsh) enableLegacy(s)

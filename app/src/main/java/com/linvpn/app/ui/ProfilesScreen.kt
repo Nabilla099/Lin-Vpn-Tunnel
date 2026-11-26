@@ -184,9 +184,9 @@ private fun validate(p: Profile): String? {
         if (p.port !in 1..65535) return "Port SSH tidak valid"
         if ((p.proxyHost.isBlank()) != (p.proxyPort == 0)) return "Proxy: isi host dan port, atau kosongkan keduanya"
     }
-    if (p.type.usesSlowDns && p.host.isNotBlank()) {
+    if (p.type == ProfileType.SSH_SLOWDNS && p.host.isNotBlank()) {
         val pt = p.host.trim().substringAfterLast(':', "")
-        if (p.host.contains(':') && pt.toIntOrNull()?.let { it in 1..65535 } != true) return "Port pada Host SlowDNS tidak valid (format host:port)"
+        if (p.host.contains(':') && pt.toIntOrNull()?.let { it in 1..65535 } != true) return "Port pada SSH Host:Port tidak valid"
     }
     if (p.type.usesSlowDns) {
         try {
@@ -270,7 +270,15 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
 
                     if (p.type.isSsh) {
                         SectionCard("Akun SSH") {
-                            if (p.type != ProfileType.SSH_SLOWDNS) {
+                            if (p.type == ProfileType.SSH_SLOWDNS) {
+                                OutlinedTextField(
+                                    value = p.host, onValueChange = { p = p.copy(host = it.trim()) },
+                                    label = { Text("SSH Host:Port") },
+                                    placeholder = { Text("mis. selowdns.vpnstore28.my.id:53") },
+                                    supportingText = { Text("Port ikut di host, contoh ssh.example.com:22") },
+                                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                                )
+                            } else {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedTextField(
                                         value = p.host, onValueChange = { p = p.copy(host = it) },
@@ -338,7 +346,7 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                             )
                             Text(
                                 when (p.dnsRecord) {
-                                    DnsRecordType.AUTO -> "Mencoba TXT lalu NULL secara berurutan."
+                                    DnsRecordType.AUTO -> "Mencoba TXT (dnstt), TXT kompatibel, lalu NULL secara berurutan."
                                     DnsRecordType.TXT -> "Klien dnstt standar."
                                     else -> "Klien VayDNS: server harus memakai tipe ${p.dnsRecord.label} yang sama."
                                 },
@@ -354,7 +362,7 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                                 value = p.dnsServer, onValueChange = { p = p.copy(dnsServer = it) },
                                 supportingText = {
                                     if (p.dnsTransport == DnsTransport.UDP)
-                                        Text("Disarankan dikosongkan. Sebagian operator memalsukan jawaban DNS publik seperti 8.8.8.8.")
+                                        Text("Kosongkan untuk memakai DNS jaringan.")
                                 },
                                 label = {
                                     Text(
@@ -367,15 +375,6 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                                 },
                                 singleLine = true, modifier = Modifier.fillMaxWidth()
                             )
-                            if (p.dnsTransport == DnsTransport.UDP) {
-                                OutlinedTextField(
-                                    value = p.host, onValueChange = { p = p.copy(host = it.trim()) },
-                                    label = { Text("Host SlowDNS (host:port, opsional)") },
-                                    placeholder = { Text("mis. selowdns.vpnstore28.my.id:53") },
-                                    supportingText = { Text("Server DNS yang dikueri langsung (port ikut di host, bawaan 53). Bila diisi, mengganti Resolver DNS.") },
-                                    singleLine = true, modifier = Modifier.fillMaxWidth()
-                                )
-                            }
                             OutlinedTextField(
                                 value = p.nsDomain, onValueChange = { p = p.copy(nsDomain = it) },
                                 label = { Text("Name Server (NS)") }, singleLine = true, modifier = Modifier.fillMaxWidth()

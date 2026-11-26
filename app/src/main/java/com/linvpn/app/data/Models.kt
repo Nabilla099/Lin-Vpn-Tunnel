@@ -59,7 +59,7 @@ data class Profile(
     // SlowDNS
     val dnsTransport: DnsTransport = DnsTransport.UDP,
     val dnsRecord: DnsRecordType = DnsRecordType.AUTO,
-    val dnsServer: String = "", // kosong = pakai DNS jaringan
+    val dnsServer: String = "8.8.8.8", // kosong = pakai DNS jaringan
     val nsDomain: String = "",
     val pubKey: String = "",
     // V2Ray

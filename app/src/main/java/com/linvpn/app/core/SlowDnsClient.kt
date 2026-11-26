@@ -7,7 +7,11 @@ import com.linvpn.app.data.Profile
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import java.io.File
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.Inet4Address
+import java.net.InetAddress
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 
 /**
@@ -24,9 +28,13 @@ class SlowDnsClient(
 ) {
     enum class Bin(val lib: String) { DNSTT("libdnstt.so"), VAYDNS("libvaydns.so") }
 
-    data class Candidate(val bin: Bin, val record: String?) {
+    data class Candidate(val bin: Bin, val record: String?, val compat: Boolean = false) {
         val label: String
-            get() = if (bin == Bin.DNSTT) "TXT (dnstt)" else (record ?: "txt").uppercase() + " (VayDNS)"
+            get() = when {
+                bin == Bin.DNSTT -> "TXT (dnstt)"
+                compat -> "TXT (VayDNS kompatibel dnstt)"
+                else -> (record ?: "txt").uppercase() + " (VayDNS)"
+            }
     }
 
     private var proc: NativeProcess? = null
@@ -50,23 +58,62 @@ class SlowDnsClient(
             args += "127.0.0.1:$port"
         } else {
             args += listOf("-domain", ns, "-listen", "127.0.0.1:$port")
-            cand.record?.let { args += listOf("-record-type", it) }
+            if (cand.compat) args += "-dnstt-compat" else cand.record?.let { args += listOf("-record-type", it) }
         }
+        if (p.dnsTransport == DnsTransport.UDP) probe(target, ns)
         LogBus.add("SlowDNS ${cand.label} · ${p.dnsTransport.name} → $target · NS $ns")
 
         val env = mapOf("GOMEMLIMIT" to "96MiB", "GOMAXPROCS" to "2")
         val np = NativeProcess("slowdns", args, env) { line ->
-            // Sembunyikan log per-stream yang sangat ramai
             if (line.contains("forged DNS responses")) {
-                LogBus.add("Peringatan: jawaban DNS dipalsukan jaringan. Kosongkan kolom Resolver DNS agar memakai DNS jaringan, atau coba resolver lain/DoH.")
+                LogBus.add("Peringatan: resolver membalas dengan jawaban palsu untuk tipe ini. Coba tipe TXT atau resolver/DoH lain.")
             }
-            !(line.contains("stream", true) && !line.contains("err", true) && !line.contains("fail", true))
+            true
         }
         proc = np
         np.start()
         if (!Net.waitPort(port, 15000) { np.isAlive() }) {
             stop()
             throw IOException("Klien SlowDNS gagal berjalan (cek NS, public key, atau resolver DNS)")
+        }
+    }
+
+    /** Uji cepat: kirim satu kueri TXT ke server DNS lalu catat balasannya (membantu diagnosa jaringan). */
+    private fun probe(target: String, ns: String) {
+        try {
+            val host = target.substringBeforeLast(':')
+            val port = target.substringAfterLast(':').toIntOrNull() ?: 53
+            val addr = try {
+                InetAddress.getByName(host)
+            } catch (e: Exception) {
+                LogBus.add("Uji DNS: nama $host tidak bisa di-resolve"); return
+            }
+            val id = (Math.random() * 65535).toInt()
+            val q = ByteArrayOutputStream()
+            q.write(id shr 8); q.write(id and 255)
+            q.write(byteArrayOf(1, 0, 0, 1, 0, 0, 0, 0, 0, 0))
+            for (label in ("t" + (Math.random() * 99999).toInt() + "." + ns).split('.')) {
+                val b = label.toByteArray(); q.write(b.size); q.write(b)
+            }
+            q.write(0); q.write(byteArrayOf(0, 16, 0, 1))
+            val data = q.toByteArray()
+            DatagramSocket().use { sock ->
+                sock.soTimeout = 3000
+                val t0 = System.currentTimeMillis()
+                sock.send(DatagramPacket(data, data.size, addr, port))
+                val buf = ByteArray(2048)
+                val pk = DatagramPacket(buf, buf.size)
+                try {
+                    sock.receive(pk)
+                    val rcode = buf[3].toInt() and 15
+                    val an = ((buf[6].toInt() and 255) shl 8) or (buf[7].toInt() and 255)
+                    LogBus.add("Uji DNS ${addr.hostAddress}:$port: balasan ${pk.length} byte, RCODE=$rcode, jawaban=$an, ${System.currentTimeMillis() - t0} ms")
+                } catch (e: java.net.SocketTimeoutException) {
+                    LogBus.add("Uji DNS ${addr.hostAddress}:$port: TIDAK ADA balasan (UDP 53 ke server ini diblokir atau alamat salah)")
+                }
+            }
+        } catch (e: Throwable) {
+            LogBus.add("Uji DNS gagal: ${e.message}")
         }
     }
 
@@ -79,12 +126,6 @@ class SlowDnsClient(
 
     private fun transport(): Pair<String, String> {
         var s = p.dnsServer.trim()
-        val h = p.host.trim()
-        if (h.isNotEmpty() && p.dnsTransport == DnsTransport.UDP) {
-            // Host SlowDNS (mis. selowdns.example.com:53) = alamat server DNS yang dikueri langsung.
-            s = if (h.contains(':')) h else "$h:53"
-            LogBus.add("Host SlowDNS: $s")
-        }
         if (s.isEmpty() && p.dnsTransport == DnsTransport.UDP) {
             val sys = systemDns(ctx)
             if (sys.isEmpty()) throw IOException("DNS jaringan tidak ditemukan; isi Resolver DNS secara manual")
@@ -126,6 +167,7 @@ class SlowDnsClient(
         fun candidates(p: Profile): List<Candidate> = when (p.dnsRecord) {
             DnsRecordType.AUTO -> listOf(
                 Candidate(Bin.DNSTT, null),
+                Candidate(Bin.VAYDNS, "txt", compat = true),
                 Candidate(Bin.VAYDNS, "null"),
                 Candidate(Bin.VAYDNS, "txt")
             )

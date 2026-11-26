@@ -49,7 +49,7 @@ go_build() { # modul_dir pkg out_name abi
     armeabi-v7a) goarch=arm;   cc="$TOOLCHAIN/armv7a-linux-androideabi${API}-clang"; extra=(GOARM=7) ;;
   esac
   ( cd "$dir" && env CGO_ENABLED=1 GOOS=android GOARCH="$goarch" CC="$cc" "${extra[@]}" \
-      go build -trimpath -buildmode=pie -ldflags "-s -w -buildid=" -o "$OUT/$abi/$name" "$pkg" ) || return 1
+      go build -trimpath -buildmode=pie -ldflags "-s -w -buildid= -checklinkname=0" -o "$OUT/$abi/$name" "$pkg" ) || return 1
   echo "  ok $abi/$name ($(du -h "$OUT/$abi/$name" | cut -f1))"
 }
 

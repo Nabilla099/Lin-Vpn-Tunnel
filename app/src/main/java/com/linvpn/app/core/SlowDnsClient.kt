@@ -62,7 +62,14 @@ class SlowDnsClient(
             if (cand.compat) args += "-dnstt-compat" else cand.record?.let { args += listOf("-record-type", it) }
             // Bawaan VayDNS hanya menunggu 500 ms untuk jawaban asli; lewat resolver seluler yang harus meneruskan
             // ke server (bisa >1 detik) jawaban sah sering terbuang. Beri waktu lebih longgar.
-            if (p.dnsTransport == DnsTransport.UDP) args += listOf("-udp-timeout", "4s", "-udp-workers", "64")
+            if (p.dnsTransport == DnsTransport.UDP) {
+                args += listOf("-udp-timeout", "${p.sdTimeoutMs.coerceIn(200, 20000)}ms", "-udp-workers", "${p.sdWorkers.coerceIn(4, 200)}")
+            }
+            if (p.sdQnameLen in 50..253) args += listOf("-max-qname-len", p.sdQnameLen.toString())
+            if (p.sdLabels > 0) args += listOf("-max-num-labels", p.sdLabels.toString())
+            if (p.sdIdleSec > 0) args += listOf("-idle-timeout", "${p.sdIdleSec}s")
+            if (p.sdKeepaliveSec > 0) args += listOf("-keepalive", "${p.sdKeepaliveSec}s")
+            if (p.sdRps > 0) args += listOf("-rps", p.sdRps.toString())
         }
         if (p.dnsTransport == DnsTransport.UDP) probe(target, ns)
         LogBus.add("SlowDNS ${cand.label} · ${p.dnsTransport.name} → $target · NS $ns")

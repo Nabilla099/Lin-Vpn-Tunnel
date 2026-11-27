@@ -64,6 +64,14 @@ data class Profile(
     val pubKey: String = "",
     // V2Ray
     val v2rayConfig: String = "",
+    // SlowDNS lanjutan (VayDNS); 0 = bawaan klien
+    val sdQnameLen: Int = 0,      // -max-qname-len (bawaan 101)
+    val sdLabels: Int = 0,        // -max-num-labels
+    val sdTimeoutMs: Int = 4000,  // -udp-timeout
+    val sdWorkers: Int = 64,      // -udp-workers
+    val sdIdleSec: Int = 0,       // -idle-timeout (harus sama dengan server)
+    val sdKeepaliveSec: Int = 0,  // -keepalive (harus sama dengan server)
+    val sdRps: Int = 0,           // -rps, batas kueri per detik
     // Dari penyedia (berkas/tautan impor)
     val note: String = "",          // catatan; boleh memakai HTML/CSS sederhana untuk warna
     val expiresAt: Long = 0,        // epoch ms; 0 = tidak kedaluwarsa

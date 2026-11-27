@@ -403,6 +403,27 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                                 textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
                                 modifier = Modifier.fillMaxWidth()
                             )
+                            var adv by remember { mutableStateOf(false) }
+                            TextButton(onClick = { adv = !adv }) { Text(if (adv) "Sembunyikan setelan lanjutan" else "Setelan lanjutan (VayDNS)") }
+                            if (adv) {
+                                Text(
+                                    "0 = bawaan klien. Idle dan keepalive harus sama dengan server. Berlaku untuk tipe selain TXT (dnstt).",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    NumField("QNAME maks (bawaan 101)", p.sdQnameLen, { p = p.copy(sdQnameLen = it) }, Modifier.weight(1f))
+                                    NumField("Label maks", p.sdLabels, { p = p.copy(sdLabels = it) }, Modifier.weight(1f))
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    NumField("Timeout UDP (ms)", p.sdTimeoutMs, { p = p.copy(sdTimeoutMs = it) }, Modifier.weight(1f))
+                                    NumField("Pekerja UDP", p.sdWorkers, { p = p.copy(sdWorkers = it) }, Modifier.weight(1f))
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    NumField("Idle (detik)", p.sdIdleSec, { p = p.copy(sdIdleSec = it) }, Modifier.weight(1f))
+                                    NumField("Keepalive (detik)", p.sdKeepaliveSec, { p = p.copy(sdKeepaliveSec = it) }, Modifier.weight(1f))
+                                }
+                                NumField("Batas kueri/detik (0 = tanpa batas)", p.sdRps, { p = p.copy(sdRps = it) }, Modifier.fillMaxWidth())
+                            }
                         }
                     }
 

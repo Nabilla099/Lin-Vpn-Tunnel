@@ -60,14 +60,17 @@ class SlowDnsClient(
         } else {
             args += listOf("-domain", ns, "-listen", "127.0.0.1:$port")
             if (cand.compat) args += "-dnstt-compat" else cand.record?.let { args += listOf("-record-type", it) }
+            // Bawaan VayDNS hanya menunggu 500 ms untuk jawaban asli; lewat resolver seluler yang harus meneruskan
+            // ke server (bisa >1 detik) jawaban sah sering terbuang. Beri waktu lebih longgar.
+            if (p.dnsTransport == DnsTransport.UDP) args += listOf("-udp-timeout", "4s", "-udp-workers", "64")
         }
         if (p.dnsTransport == DnsTransport.UDP) probe(target, ns)
         LogBus.add("SlowDNS ${cand.label} · ${p.dnsTransport.name} → $target · NS $ns")
 
-        val env = mapOf("GOMEMLIMIT" to "48MiB", "GOGC" to "40", "GOMAXPROCS" to "1", "GODEBUG" to "madvdontneed=1")
+        val env = mapOf("GOMEMLIMIT" to "48MiB", "GOGC" to "40", "GOMAXPROCS" to "2", "GODEBUG" to "madvdontneed=1")
         val np = NativeProcess("slowdns", args, env) { line ->
             if (line.contains("forged DNS responses")) {
-                LogBus.add("Peringatan: resolver membalas dengan jawaban palsu untuk tipe ini. Coba tipe TXT atau resolver/DoH lain.")
+                LogBus.add("Resolver hanya membalas NXDOMAIN (jawaban palsu, atau server SlowDNS tidak terjangkau lewat resolver ini).")
             }
             true
         }

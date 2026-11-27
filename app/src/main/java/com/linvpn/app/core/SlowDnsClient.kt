@@ -52,6 +52,7 @@ class SlowDnsClient(
         args += flag
         args += target
         args += listOf("-pubkey", key)
+        LogBus.add("NS ${p.nsDomain.trim()} · kunci ${key.take(8)}…${key.takeLast(8)} (${key.length} karakter)")
         if (cand.bin == Bin.DNSTT) {
             // dnstt-client [flags] DOMAIN LOCALADDR
             args += ns

@@ -130,7 +130,7 @@ class SlowDnsClient(
             val sys = systemDns(ctx)
             if (sys.isEmpty()) throw IOException("DNS jaringan tidak ditemukan; isi Resolver DNS secara manual")
             s = sys.first()
-            LogBus.add("Resolver: DNS jaringan ($s)")
+            LogBus.add("Resolver: DNS jaringan ${lastDnsNet.ifEmpty { "" }} ($s)".replace("  ", " "))
         }
         return when (p.dnsTransport) {
             DnsTransport.UDP -> "-udp" to (if (s.contains(':')) s else "$s:53")
@@ -140,16 +140,30 @@ class SlowDnsClient(
     }
 
     companion object {
-        /** Server DNS (IPv4) milik jaringan aktif non-VPN, mis. DNS operator seluler/Wi-Fi. */
+        /** Jenis jaringan yang DNS-nya dipakai terakhir kali (untuk log). */
+        @Volatile var lastDnsNet: String = ""
+
+        /** Server DNS (IPv4) milik jaringan non-VPN; jaringan aktif (yang dipakai internet sekarang) didahulukan. */
         fun systemDns(ctx: Context): List<String> = try {
             val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val out = LinkedHashSet<String>()
-            for (n in cm.allNetworks) {
+            val active = try { cm.activeNetwork } catch (_: Throwable) { null }
+            val nets = cm.allNetworks.sortedBy { if (it == active) 0 else 1 }
+            lastDnsNet = ""
+            for (n in nets) {
                 val caps = cm.getNetworkCapabilities(n) ?: continue
                 if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue
                 if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
+                val before = out.size
                 cm.getLinkProperties(n)?.dnsServers?.forEach { a ->
                     if (a is Inet4Address && !a.isLoopbackAddress) a.hostAddress?.let { out += it }
+                }
+                if (lastDnsNet.isEmpty() && out.size > before) {
+                    lastDnsNet = when {
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Seluler"
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+                        else -> "Lainnya"
+                    }
                 }
             }
             out.toList()

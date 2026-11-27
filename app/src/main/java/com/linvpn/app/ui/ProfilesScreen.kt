@@ -229,6 +229,8 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
     var showPass by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val clip = LocalClipboardManager.current
+    var formMode by remember { mutableStateOf(true) }
+    var formVer by remember { mutableStateOf(0) }
     BackHandler(onBack = onClose)
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -406,7 +408,26 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
 
                     if (p.type.isV2ray) {
                         SectionCard("Konfigurasi V2Ray") {
-                            OutlinedTextField(
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(selected = formMode, onClick = { formMode = true; formVer++ }, label = { Text("Formulir") })
+                                FilterChip(selected = !formMode, onClick = { formMode = false }, label = { Text("JSON") })
+                            }
+                            if (formMode) {
+                                val parsed = remember(formVer) { V2rayConfig.toForm(p.v2rayConfig) }
+                                var form by remember(formVer) { mutableStateOf(parsed ?: V2rayConfig.Form()) }
+                                if (parsed == null && p.v2rayConfig.isNotBlank()) {
+                                    Text(
+                                        "Konfigurasi ini tidak punya outbound vmess/vless/trojan yang bisa dibaca formulir; mengubah isian akan menggantinya. Gunakan mode JSON untuk menyunting apa adanya.",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                                androidx.compose.runtime.key(formVer) {
+                                    V2rayForm(form) { nf ->
+                                        form = nf
+                                        p = p.copy(v2rayConfig = V2rayConfig.applyForm(p.v2rayConfig, nf))
+                                    }
+                                }
+                            } else OutlinedTextField(
                                 value = p.v2rayConfig, onValueChange = { p = p.copy(v2rayConfig = it) },
                                 label = { Text("JSON konfigurasi") }, minLines = 10, maxLines = 24,
                                 textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
@@ -420,12 +441,13 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                                         Toast.makeText(ctx, "Clipboard bukan tautan vmess/vless/trojan/ss atau JSON valid", Toast.LENGTH_LONG).show()
                                     } else {
                                         p = p.copy(v2rayConfig = r.second, name = if (p.name == "Profil baru") r.first else p.name)
+                                        formVer++
                                     }
                                 }) { Text("Impor dari clipboard") }
-                                OutlinedButton(onClick = { p = p.copy(v2rayConfig = V2rayConfig.template()) }) { Text("Contoh") }
+                                OutlinedButton(onClick = { p = p.copy(v2rayConfig = V2rayConfig.template()); formVer++ }) { Text("Contoh") }
                                 OutlinedButton(onClick = {
                                     val r = V2rayConfig.pretty(p.v2rayConfig)
-                                    if (r == null) Toast.makeText(ctx, "JSON tidak valid", Toast.LENGTH_SHORT).show() else p = p.copy(v2rayConfig = r)
+                                    if (r == null) Toast.makeText(ctx, "JSON tidak valid", Toast.LENGTH_SHORT).show() else { p = p.copy(v2rayConfig = r); formVer++ }
                                 }) { Text("Rapikan") }
                             }
                             Text(
@@ -433,6 +455,15 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                    SectionCard("Catatan") {
+                        OutlinedTextField(
+                            value = p.note, onValueChange = { p = p.copy(note = it) },
+                            label = { Text("Catatan (HTML/CSS)") },
+                            supportingText = { Text("Contoh: <b style=\"color:#e91e63\">Promo</b> <span style=\"color:#2e7d32\">aktif</span>") },
+                            minLines = 2, maxLines = 6, modifier = Modifier.fillMaxWidth()
+                        )
+                        if (p.note.isNotBlank()) HtmlText(p.note, Modifier.fillMaxWidth())
                     }
                     Spacer(Modifier.height(24.dp).navigationBarsPadding())
                 }

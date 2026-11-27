@@ -103,6 +103,108 @@ object V2rayConfig {
         if (t.optString("serverName").isBlank()) t.put("serverName", orig)
     }
 
+    // ---- Editor formulir ---------------------------------------------------------------------
+
+    data class Form(
+        val proto: String = "vless", val address: String = "", val port: Int = 443, val id: String = "",
+        val net: String = "ws", val sec: String = "tls", val sni: String = "", val path: String = "/",
+        val host: String = "", val insecure: Boolean = false, val alpn: String = "", val fp: String = "",
+        val alterId: Int = 0, val cipher: String = "auto"
+    )
+
+    private val formProtocols = setOf("vmess", "vless", "trojan")
+
+    private fun firstProxyIndex(outs: JSONArray?): Int {
+        if (outs == null) return -1
+        for (i in 0 until outs.length()) if (outs.getJSONObject(i).optString("protocol") in formProtocols) return i
+        return -1
+    }
+
+    /** Membaca outbound proxy pertama (vmess/vless/trojan) menjadi isian formulir; null bila tidak ada/tidak didukung. */
+    fun toForm(json: String): Form? = try {
+        val outs = JSONObject(json).optJSONArray("outbounds")
+        val ob = outs!!.getJSONObject(firstProxyIndex(outs).also { if (it < 0) throw IllegalStateException() })
+        val proto = ob.getString("protocol")
+        val settings = ob.getJSONObject("settings")
+        var f = Form(proto = proto)
+        if (proto == "trojan") {
+            val sv = settings.getJSONArray("servers").getJSONObject(0)
+            f = f.copy(address = sv.optString("address"), port = sv.optInt("port", 443), id = sv.optString("password"))
+        } else {
+            val sv = settings.getJSONArray("vnext").getJSONObject(0)
+            val u = sv.getJSONArray("users").getJSONObject(0)
+            f = f.copy(
+                address = sv.optString("address"), port = sv.optInt("port", 443), id = u.optString("id"),
+                alterId = u.optInt("alterId", 0), cipher = u.optString("security", "auto").ifEmpty { "auto" }
+            )
+        }
+        val ss = ob.optJSONObject("streamSettings") ?: JSONObject()
+        val net = ss.optString("network", "tcp").ifEmpty { "tcp" }
+        var path = ""
+        var host = ""
+        when (net) {
+            "ws" -> ss.optJSONObject("wsSettings")?.let { path = it.optString("path"); host = it.optJSONObject("headers")?.optString("Host").orEmpty() }
+            "grpc" -> path = ss.optJSONObject("grpcSettings")?.optString("serviceName").orEmpty()
+            "httpupgrade" -> ss.optJSONObject("httpupgradeSettings")?.let { path = it.optString("path"); host = it.optString("host") }
+            "xhttp" -> ss.optJSONObject("xhttpSettings")?.let { path = it.optString("path"); host = it.optString("host") }
+            "http" -> ss.optJSONObject("httpSettings")?.let { path = it.optString("path"); host = it.optJSONArray("host")?.optString(0).orEmpty() }
+        }
+        val sec = ss.optString("security", "none").ifEmpty { "none" }
+        val tls = ss.optJSONObject("tlsSettings")
+        f.copy(
+            net = net, path = path, host = host, sec = sec,
+            sni = tls?.optString("serverName").orEmpty(),
+            insecure = tls?.optBoolean("allowInsecure", false) ?: false,
+            alpn = tls?.optJSONArray("alpn")?.let { a -> (0 until a.length()).joinToString(",") { a.getString(it) } }.orEmpty(),
+            fp = tls?.optString("fingerprint").orEmpty()
+        )
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Menulis isian formulir ke outbound proxy pertama; bagian lain JSON (routing, dns, dll) dipertahankan. */
+    fun applyForm(json: String, f: Form): String {
+        val root = try { JSONObject(json) } catch (e: Exception) { JSONObject(wrap(JSONObject().put("protocol", "freedom"))) }
+        val outs = root.optJSONArray("outbounds") ?: JSONArray().also { root.put("outbounds", it) }
+        val idx = firstProxyIndex(outs)
+        val old = if (idx >= 0) outs.getJSONObject(idx) else null
+        val oldUser = old?.optJSONObject("settings")?.optJSONArray("vnext")?.optJSONObject(0)?.optJSONArray("users")?.optJSONObject(0)
+        val ob = JSONObject().put("tag", old?.optString("tag")?.ifEmpty { "proxy" } ?: "proxy").put("protocol", f.proto)
+        if (f.proto == "trojan") {
+            val server = JSONObject().put("address", f.address).put("port", f.port).put("password", f.id)
+            ob.put("settings", JSONObject().put("servers", JSONArray().put(server)))
+        } else {
+            val user = JSONObject().put("id", f.id)
+            if (f.proto == "vmess") {
+                user.put("alterId", f.alterId).put("security", f.cipher.ifEmpty { "auto" })
+            } else {
+                user.put("encryption", "none")
+                oldUser?.optString("flow")?.takeIf { it.isNotEmpty() }?.let { user.put("flow", it) }
+            }
+            ob.put(
+                "settings",
+                JSONObject().put(
+                    "vnext",
+                    JSONArray().put(JSONObject().put("address", f.address).put("port", f.port).put("users", JSONArray().put(user)))
+                )
+            )
+        }
+        if (f.sec == "reality" && old?.optJSONObject("streamSettings") != null) {
+            // Reality tidak bisa diedit lewat formulir; pertahankan pengaturan aslinya
+            ob.put("streamSettings", old.getJSONObject("streamSettings"))
+        } else {
+            val ss = stream(f.net, f.sec, f.host, f.path, f.sni, f.alpn, f.fp, "", emptyMap(), f.address)
+            ss.optJSONObject("tlsSettings")?.put("allowInsecure", f.insecure)
+            ob.put("streamSettings", ss)
+        }
+        if (idx >= 0) outs.put(idx, ob) else {
+            val rebuilt = JSONArray().put(ob)
+            for (i in 0 until outs.length()) rebuilt.put(outs.get(i))
+            root.put("outbounds", rebuilt)
+        }
+        return root.toString(2)
+    }
+
     // ---- Importer -------------------------------------------------------------------------
 
     private fun b64(s: String): String {

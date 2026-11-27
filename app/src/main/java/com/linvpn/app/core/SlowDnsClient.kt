@@ -166,9 +166,10 @@ class SlowDnsClient(
         /** Urutan percobaan menurut tipe koneksi yang dipilih. */
         fun candidates(p: Profile): List<Candidate> = when (p.dnsRecord) {
             DnsRecordType.AUTO -> listOf(
+                Candidate(Bin.VAYDNS, "aaaa"),
+                Candidate(Bin.VAYDNS, "null"),
                 Candidate(Bin.DNSTT, null),
                 Candidate(Bin.VAYDNS, "txt", compat = true),
-                Candidate(Bin.VAYDNS, "null"),
                 Candidate(Bin.VAYDNS, "txt")
             )
             DnsRecordType.TXT -> listOf(Candidate(Bin.DNSTT, null))

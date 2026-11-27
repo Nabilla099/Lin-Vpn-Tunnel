@@ -452,6 +452,30 @@ object NetInfo {
         else -> n
     }
 
+    /** Uji nyata: HTTP GET lewat proxy SOCKS lokal; true bila server membalas HTTP (artinya tunnel benar-benar jalan). */
+    fun probeThroughSocks(socksPort: Int, host: String, path: String, timeoutMs: Int): Boolean = try {
+        Socket().use { s ->
+            s.connect(InetSocketAddress("127.0.0.1", socksPort), 3000)
+            s.soTimeout = timeoutMs
+            val o = s.getOutputStream()
+            val i = s.getInputStream()
+            o.write(byteArrayOf(5, 1, 0)); o.flush()
+            val r = ByteArray(2); Socks5Server.readFully(i, r)
+            val hb = host.toByteArray()
+            val req = ByteArrayOutputStream()
+            req.write(byteArrayOf(5, 1, 0, 3, hb.size.toByte())); req.write(hb); req.write(byteArrayOf(0, 80))
+            o.write(req.toByteArray()); o.flush()
+            val h = ByteArray(10); Socks5Server.readFully(i, h)
+            if (h[1].toInt() != 0) false else {
+                o.write("GET $path HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n".toByteArray()); o.flush()
+                val line = ByteArray(5); Socks5Server.readFully(i, line)
+                String(line, Charsets.ISO_8859_1).startsWith("HTTP/")
+            }
+        }
+    } catch (e: Exception) {
+        false
+    }
+
     /** Meminta IP publik lewat proxy SOCKS lokal (artinya IP keluar tunnel). */
     fun publicIp(socksPort: Int): String? = try {
         Socket().use { s ->

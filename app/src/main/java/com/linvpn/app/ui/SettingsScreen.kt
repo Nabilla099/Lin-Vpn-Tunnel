@@ -196,9 +196,9 @@ fun SettingsScreen() {
             }
 
             SettingGroup("Data") {
-                SettingItem("Ekspor profil", "", "Simpan sebagai berkas .ln atau tautan Link-Vpn") { shareExport = true }
+                SettingItem("Ekspor profil", "", "Simpan sebagai berkas .ln atau tautan lin-vpn") { shareExport = true }
                 SettingDivider()
-                SettingItem("Impor profil", "", "Dari berkas .ln atau tautan Link-Vpn") { shareImport = true }
+                SettingItem("Impor profil", "", "Dari berkas .ln atau tautan lin-vpn") { shareImport = true }
                 SettingDivider()
                 SettingItem("Setel ulang pengaturan", "", "Profil tidak dihapus") {
                     upd { AppSettings(lastProfileId = it.lastProfileId) }

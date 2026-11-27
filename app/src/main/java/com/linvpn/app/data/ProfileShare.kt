@@ -31,7 +31,7 @@ class NeedPasswordException : Exception("Berkas dilindungi password")
 class WrongPasswordException : Exception("Password salah")
 
 /**
- * Format berkas .ln dan tautan "Link-Vpn:..." (v2) - tanpa tanda pengenal tetap (tidak ada "magic bytes"):
+ * Format berkas .ln dan tautan "lin-vpn:..." (v2) - tanpa tanda pengenal tetap (tidak ada "magic bytes"):
  *   salt(16) | iv(12) | AES-256-GCM_B( AES-256-GCM_A( gzip(data) + padding acak + panjang padding ) )
  * Kunci A dan B diturunkan terpisah (HMAC-SHA256) dari kunci akar + salt acak tiap berkas, sehingga dua
  * berkas dari isi yang sama tampak berbeda total. Bot/alat umum tidak mengenali formatnya dan tidak bisa
@@ -39,7 +39,8 @@ class WrongPasswordException : Exception("Password salah")
  * Catatan: tanpa password, kunci akar tertanam di aplikasi, jadi hanya menyamarkan; yang kuat adalah password.
  */
 object ProfileShare {
-    const val PREFIX = "Link-Vpn:"
+    const val PREFIX = "lin-vpn:"
+    private const val LEGACY_PREFIX = "link-vpn:"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val rnd = SecureRandom()
     private const val BUILTIN = "LinVpn/profile-share/v2"
@@ -114,17 +115,18 @@ object ProfileShare {
         return tryDecode(data, password) ?: throw WrongPasswordException()
     }
 
-    /** Tautan yang berisi seluruh data (tanpa server): Link-Vpn:<base64url>. */
+    /** Tautan yang berisi seluruh data (tanpa server): lin-vpn:<base64url>. */
     fun toLink(data: ByteArray): String =
         PREFIX + Base64.encodeToString(data, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
 
     /**
-     * Teks "Link-Vpn:..." bisa berisi: URL http(s) tempat berkas .ln disimpan (diunduh),
+     * Teks "lin-vpn:..." bisa berisi: URL http(s) tempat berkas .ln disimpan (diunduh),
      * atau data base64url langsung. Hasilnya berupa byte berkas .ln.
      */
     fun resolve(text: String): ByteArray {
         var t = text.trim()
         if (t.startsWith(PREFIX, ignoreCase = true)) t = t.substring(PREFIX.length).trim()
+        else if (t.startsWith(LEGACY_PREFIX, ignoreCase = true)) t = t.substring(LEGACY_PREFIX.length).trim()
         require(t.isNotEmpty()) { "Tautan kosong" }
         if (t.startsWith("http://", true) || t.startsWith("https://", true)) return fetch(t)
         return Base64.decode(t, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
@@ -139,7 +141,7 @@ object ProfileShare {
             val raw = c.inputStream.use { it.readBytes() }
             require(raw.size <= 1_000_000) { "Berkas terlalu besar" }
             // Server boleh menyimpan berkas apa adanya (biner) atau sebagai teks base64url
-            val txt = String(raw, Charsets.ISO_8859_1).trim().removePrefix(PREFIX)
+            val txt = String(raw, Charsets.ISO_8859_1).trim().removePrefix(PREFIX).removePrefix(LEGACY_PREFIX)
             return if (txt.length > 40 && txt.all { it.isLetterOrDigit() && it.code < 128 || it == '-' || it == '_' })
                 Base64.decode(txt, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
             else raw

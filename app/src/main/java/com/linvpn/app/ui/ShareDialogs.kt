@@ -51,7 +51,7 @@ private fun SwitchRow(title: String, sub: String, checked: Boolean, onChange: (B
     }
 }
 
-/** Ekspor ke berkas .ln atau tautan "Link-Vpn:" lengkap dengan opsi penyedia. */
+/** Ekspor ke berkas .ln atau tautan "lin-vpn:" lengkap dengan opsi penyedia. */
 @Composable
 fun ExportDialog(profiles: List<Profile>, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
@@ -130,7 +130,7 @@ fun ExportDialog(profiles: List<Profile>, onDismiss: () -> Unit) {
         confirmButton = {
             Row {
                 TextButton(enabled = exportable.isNotEmpty(), onClick = {
-                    build()?.let { clip.setText(AnnotatedString(ProfileShare.toLink(it))); Toast.makeText(ctx, "Tautan Link-Vpn disalin", Toast.LENGTH_SHORT).show() }
+                    build()?.let { clip.setText(AnnotatedString(ProfileShare.toLink(it))); Toast.makeText(ctx, "Tautan lin-vpn disalin", Toast.LENGTH_SHORT).show() }
                 }) { Text("Salin tautan") }
                 TextButton(enabled = exportable.isNotEmpty(), onClick = {
                     build()?.let { pending = it; saver.launch("profil.ln") }
@@ -141,7 +141,7 @@ fun ExportDialog(profiles: List<Profile>, onDismiss: () -> Unit) {
     )
 }
 
-/** Impor dari berkas .ln atau tautan "Link-Vpn:" (data langsung atau URL acak yang menyimpan berkas). */
+/** Impor dari berkas .ln atau tautan "lin-vpn:" (data langsung atau URL acak yang menyimpan berkas). */
 @Composable
 fun ImportDialog(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
@@ -209,7 +209,7 @@ fun ImportDialog(onDismiss: () -> Unit) {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = text, onValueChange = { text = it; needPw = false; error = null },
-                    label = { Text("Tautan Link-Vpn:…") }, minLines = 2, maxLines = 4,
+                    label = { Text("Tautan lin-vpn:…") }, minLines = 2, maxLines = 4,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

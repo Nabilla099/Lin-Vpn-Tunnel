@@ -362,7 +362,7 @@ fun ProfileEditor(initial: Profile, onClose: () -> Unit) {
                             )
                             Text(
                                 when (p.dnsRecord) {
-                                    DnsRecordType.AUTO -> "Mencoba TXT (dnstt), TXT kompatibel, lalu NULL secara berurutan."
+                                    DnsRecordType.AUTO -> "Mencoba AAAA, NULL, TXT (dnstt), lalu TXT kompatibel secara berurutan."
                                     DnsRecordType.TXT -> "Klien dnstt standar."
                                     else -> "Klien VayDNS: server harus memakai tipe ${p.dnsRecord.label} yang sama."
                                 },
